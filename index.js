@@ -39,6 +39,10 @@ app.get("/proxy", async (req, res) => {
   }
 });
 
+app.get("/userdata", async (req, res) => {
+  res.json(getUsersCache(req.ip));
+});
+
 const port = process.env.PORT || 6001;
 app.listen(port, () => {
   console.log("Back end is alive! + listening on " + port);
@@ -71,10 +75,13 @@ function storeInCache(url, data) {
 }
 
 function getUsersCache(ip) {
+  console.log("ip runnings");
   let output = [];
   // iterate over the cache and if IP matches, add that to output
-  for (let i = 0; i < cache.length; i++) {
-    const element = cache[i];
+  for (const property in cache) {
+    if (cache[property].ip == ip) {
+      output.push(cache[property]);
+    }
   }
   return output;
 }
