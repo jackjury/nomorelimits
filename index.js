@@ -5,9 +5,32 @@ require("dotenv").config();
 app.use(express.json());
 const cors = require("cors");
 app.use(cors());
+const mysql = require("mysql");
+require("dotenv").config();
+
+const connection = {};
+connection.mysql = mysql.createConnection({
+  database: process.env.DATABASE,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  host: process.env.DB_HOST, // ?
+  port: process.env.DB_PORT,
+});
+
+connection.mysql.connect();
+
+function makeAsync(query) {
+  return new Promise(function (resolve, reject) {
+    connection.mysql.query(query, (err, results) => {
+      if (err) reject();
+      //else resolve
+      resolve(results);
+    });
+  });
+}
 
 let cache = {};
-const TIME_TO_LIVE = 3000; // 5 minutes
+const TIME_TO_LIVE = 15000; // 5 minutes
 
 app.use(express.static("public"));
 
@@ -20,9 +43,13 @@ app.get("/apiproxy", async (req, res) => {
       url = url + `&${key}=${req.query[key]}`;
     });
   }
-  if (isInCache(url)) {
+
+  let isInCacheUrl = await isInCache(url);
+
+  if (isInCacheUrl) {
     console.log("Responding from Cache");
-    res.json(retriveFromCache(url));
+    let response = await retriveFromCache(url);
+    res.json(response);
   } else {
     console.log("Getting new data");
     let response = await axios.get(url);
@@ -38,24 +65,54 @@ app.get("/apiproxy", async (req, res) => {
   }
 });
 
-const port = process.env.PORT || 6001;
+const port = process.env.PORT || 6001; // add in process.env later
 app.listen(port, () => {
   console.log("Back end is alive! + listening on " + port);
 });
 
-function isInCache(url) {
+async function isInCache(url) {
   // Checks to see if the url is in the cache, and returns true or false
-  return cache[url] && Date.now() < cache[url].expires;
+  const query = `SELECT url, expires
+                  FROM apiTable
+                  WHERE url LIKE "${url}" 
+                  ORDER BY expires DESC 
+                  LIMIT 1`;
+
+  const results = await makeAsync(query);
+
+  if (results.length > 0 && Date.now() < results[0].expires) {
+    console.log("true, in cache");
+    return true;
+  }
+  console.log("false, not in cache or expired");
+  return false;
 }
 
-function retriveFromCache(url) {
+async function retriveFromCache(url) {
   // Using URL as key return data in the following format
   // {
   //   data: {data from request},
   //   expires: times now + 5mins,
   //   ip: users ip address
   // }
-  return cache[url].data;
+  const query = `SELECT data, expires, ip_address
+                  FROM apiTable
+                  WHERE url LIKE "${url}"
+                  ORDER BY expires DESC 
+                  LIMIT 1`;
+
+  const results = await makeAsync(query);
+
+  if (results.length > 0) {
+    let output = {
+      data: JSON.parse(results[0].data),
+      expires: results[0].expires,
+      ip: results[0].ip_address,
+    };
+
+    console.log(output);
+    return output.data;
+  }
 }
 
 function storeInCache(url, data) {
@@ -66,11 +123,36 @@ function storeInCache(url, data) {
   //   ip: users ip address
   // }
   // In future, will store our data in DB
-  cache[url] = data;
+
+  const query = `INSERT INTO 
+                   apiTable (url, data, expires, ip_address) 
+                   VALUES ("${url}", ?,
+                    "${data.expires}", "${data.ip}")`;
+
+  const values = [JSON.stringify(data.data)];
+
+  connection.mysql.query(query, values, (error, results) => {});
 }
 
-function getUsersCache(ip) {
-  let output = [];
-  // iterate over the cache and if IP matches, add that to output
-  return output;
-}
+// worry about later
+// function getUsersCache(ip) {
+//   let output = [];
+
+//   app.get("/apiproxy", (request, response) => {
+//     const query = `SELECT ip_address
+//                   FROM apiTable
+//                   WHERE ip_address LIKE "${data.ip}"`;
+
+//     console.log(query);
+
+//     connection.mysql.query(query, (error, results) => {
+//       if (results.count === 1) {
+//         return output;
+//       }
+//       //query then what happens after execution
+//       console.log(("results:", JSON.stringify(results)), "error:", error);
+//     });
+//   });
+
+//   // iterate over the cache and if IP matches, add that to output
+// }
