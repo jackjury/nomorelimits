@@ -34,7 +34,7 @@ const TIME_TO_LIVE = 15000; // 5 minutes
 
 app.use(express.static("public"));
 
-app.get("/apiproxy", async (req, res) => {
+app.get("/proxy", async (req, res) => {
   let queryKeys = Object.keys(req.query); // gets an array of all of the keys
   queryKeys.shift(); // removes url from that array
   let url = req.query.url;
