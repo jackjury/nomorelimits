@@ -1,31 +1,39 @@
 const express = require("express");
 const app = express();
 const axios = require("axios");
+require("dotenv").config();
 app.use(express.json());
 const cors = require("cors");
 app.use(cors());
 
-let cache = null;
+let cache = {};
+const TIME_TO_LIVE = 300000; // 5 minutes
 
-app.post("/getApiData", async (request, response) => {
-  //check if we saved the result from the api
-  if (cache) {
-    console.log("Sending cached data");
-    response.send({ result: cache.data }); //if so send cache
+app.get("/", async (req, res) => {
+  let queryKeys = Object.keys(req.query); // gets an array of all of the keys
+  queryKeys.shift(); // removes url from that array
+  let url = req.query.url;
+  console.log(url);
+  if (queryKeys.length > 0) {
+    queryKeys.forEach((key) => {
+      url = url + `&${key}=${req.query[key]}`;
+    });
+  }
+  console.log(url);
+
+  if (cache[url] && Date.now() < cache[url].expires) {
+    res.json(cache[url].data);
   } else {
-    console.log("Getting new data from API");
-    const apiKey = "cd02649997e97766b1cc67fa61c60870";
-    const apiUrl = "http://data.fixer.io/api/latest";
-
-    const result = await axios.get(
-      `${apiUrl}?access_key=${apiKey}&symbols=USD,AUD,CAD,PLN,MXN`
-    );
-
-    cache = result;
-    response.send({ result: result.data }); //get data from api then save
+    let response = await axios.get(url);
+    cache[url] = {
+      data: response.data,
+      expires: Date.now() + TIME_TO_LIVE,
+    };
+    res.json(response.data);
   }
 });
 
-app.listen(6001, () => {
+const port = process.env.PORT || 6001;
+app.listen(port, () => {
   console.log("Back end is alive!");
 });
