@@ -11,7 +11,7 @@ const TIME_TO_LIVE = 3000; // 5 minutes
 
 app.use(express.static("public"));
 
-app.get("/apiproxy", async (req, res) => {
+app.get("/proxy", async (req, res) => {
   let queryKeys = Object.keys(req.query); // gets an array of all of the keys
   queryKeys.shift(); // removes url from that array
   let url = req.query.url;
@@ -20,6 +20,7 @@ app.get("/apiproxy", async (req, res) => {
       url = url + `&${key}=${req.query[key]}`;
     });
   }
+
   if (isInCache(url)) {
     console.log("Responding from Cache");
     res.json(retriveFromCache(url));
@@ -72,5 +73,8 @@ function storeInCache(url, data) {
 function getUsersCache(ip) {
   let output = [];
   // iterate over the cache and if IP matches, add that to output
+  for (let i = 0; i < cache.length; i++) {
+    const element = cache[i];
+  }
   return output;
 }
